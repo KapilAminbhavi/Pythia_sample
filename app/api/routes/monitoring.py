@@ -46,7 +46,7 @@ async def compare_prompt_versions(
     """
     Compare two prompt versions (A/B testing).
 
-    Requires prompt_version to be stored in metadata.
+    Requires prompt_version to be stored in metadat.
     """
     monitor = DriftMonitor(db)
     return monitor.compare_prompt_versions(version_a, version_b, days=days)
