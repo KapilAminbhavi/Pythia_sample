@@ -32,6 +32,8 @@ class InsightService:
         start_time = time.time()
         fallback_used = False
 
+        logger.info(f"Request data: {request.data}")
+        logger.info(f"Request input_type: {request.input_type}")
         try:
             # Step 1: Extract features
             features = self._extract_features(request)
@@ -39,18 +41,20 @@ class InsightService:
 
             # Step 1.1: Run anomaly detection
             anomaly_result = None
-            if request.input_type == "metrics" and len(request.data['values']) >= 3:
-                values = request.data['values']
-                anomaly_result = self.anomaly_detector.z_score_detection(values)
-                logger.info(f"Anomaly detection: {anomaly_result.is_anomaly} "
-                          f"(z-score: {anomaly_result.z_score:.2f})")
+            if request.input_type == "metrics":
+                values = request.data.get('values', [])
+                if len(values) >= 3:
+                    anomaly_result = self.anomaly_detector.z_score_detection(values)
+                    logger.info(f"Anomaly detection: {anomaly_result.is_anomaly} "
+                                f"(z-score: {anomaly_result.z_score:.2f})")
 
             # Step 2: Build prompt
             metric_name = self._get_metric_name(request)
             prompt = self.prompt_builder.build_insight_prompt(
                 metric_name=metric_name,
                 features=features,
-                input_data=request.data
+                input_data=request.data,
+                anomaly_result=anomaly_result  # ← ADD THIS
             )
 
             # Step 3: Call LLM with retry logic
@@ -66,16 +70,32 @@ class InsightService:
                 fallback_used = True
 
         except Exception as e:
-            logger.error(f"Insight generation failed: {e}")
-            # Emergency fallback
-            features = FeatureSet(
-                previous_value=0.0,
-                current_value=0.0,
-                change_absolute=0.0,
-                change_percent=0.0,
-                severity="low"
-            )
-            metric_name = "unknown"
+            logger.error(f"Insight generation failed: {e}", exc_info=True)
+
+            # Try to preserve extracted features if they exist
+            try:
+                # Features already extracted before error
+                if 'features' not in locals():
+                    features = FeatureSet(
+                        previous_value=0.0,
+                        current_value=0.0,
+                        change_absolute=0.0,
+                        change_percent=0.0,
+                        severity="low"
+                    )
+                if 'metric_name' not in locals():
+                    metric_name = self._get_metric_name(request) if hasattr(request, 'data') else "unknown"
+            except:
+                features = FeatureSet(
+                    previous_value=0.0,
+                    current_value=0.0,
+                    change_absolute=0.0,
+                    change_percent=0.0,
+                    severity="low"
+                )
+                metric_name = "unknown"
+
+
             insight = self._generate_fallback_insight(features, metric_name)
             fallback_used = True
 
@@ -103,18 +123,24 @@ class InsightService:
     def _extract_features(self, request: InsightRequest) -> FeatureSet:
         """Route to appropriate feature extractor"""
         if request.input_type == "metrics":
-            values = request.data['values']
+            values = request.data.get('values', [])  # ← CHANGE 1: Use .get()
+
+            # CHANGE 2: Add validation
+            if not values or len(values) < 2:
+                logger.warning(f"Invalid values in request: {request.data}")
+                raise ValueError("Need at least 2 values in data.values")
+
             context = request.context.dict() if request.context else None
             return self.feature_extractor.extract_from_metrics(values, context)
-        elif request.input_type == "text":
-            return self.feature_extractor.extract_from_text(request.data['content'])
-        else:
-            raise ValueError(f"Unsupported input_type: {request.input_type}")
 
     def _get_metric_name(self, request: InsightRequest) -> str:
         """Extract metric name from request data"""
         if request.input_type == "metrics":
-            return request.data.get('metric_name', 'Unknown Metric')
+            metric_name = request.data.get('metric_name')
+            if not metric_name:
+                logger.warning(f"Missing metric_name in request data: {request.data}")
+                return "Unknown Metric"
+            return metric_name
         elif request.input_type == "text":
             return "Text Analysis"
         else:

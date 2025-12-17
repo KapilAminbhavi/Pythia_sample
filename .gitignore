@@ -1,1 +1,16 @@
 .env1
+
+# Python
+__pycache__/
+*.pyc
+
+# Mac
+.DS_Store
+
+# Env
+.env
+
+INTEGRATION_EXAMPLES/
+Part 1 AI System & Model Architecture/
+Part 3 AI Delivery & Ops Plan/
+TEST_CASES_EXAMPLES/
