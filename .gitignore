@@ -9,3 +9,8 @@ __pycache__/
 
 # Env
 .env
+
+INTEGRATION_EXAMPLES/
+Part 1 AI System & Model Architecture/
+Part 3 AI Delivery & Ops Plan/
+TEST_CASES_EXAMPLES/
