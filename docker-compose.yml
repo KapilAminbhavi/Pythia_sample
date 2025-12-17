@@ -150,7 +150,7 @@ services:
     image: dpage/pgadmin4:latest
     container_name: pythia_pgadmin
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@pythia.local
+      PGADMIN_DEFAULT_EMAIL: kaminbhavi@outlook.com
       PGADMIN_DEFAULT_PASSWORD: admin
       PGADMIN_CONFIG_SERVER_MODE: 'False'
     ports:
